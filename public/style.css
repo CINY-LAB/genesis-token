@@ -1,0 +1,26 @@
+* { box-sizing: border-box; }
+html, body { margin: 0; height: 100%; background: #1e1e1e; color: #c8c8c8;
+  font: 14px/1.5 Consolas, "Cascadia Mono", Menlo, monospace; }
+#screen { margin: 0; padding: 16px 20px; white-space: pre; font: inherit; }
+#screen div { min-height: 1.5em; }
+.title { color: #4fc1ff; font-weight: bold; }
+.tok { color: #dcdcaa; }
+.dim { color: #777; }
+.good { color: #6a9955; }
+.dev { color: #c86464; }
+.keys { color: #9cdcfe; }
+.msg { color: #c9a64b; margin-top: 4px; }
+.btn { cursor: pointer; }
+.btn:hover, .row:hover { background: #2d2d30; }
+.row, [data-cell] { cursor: pointer; }
+.sel { color: #fff; background: #264f78; }
+.word { color: #fff; font-size: 18px; letter-spacing: 2px; }
+.cur { animation: blink 1s steps(1) infinite; }
+@keyframes blink { 50% { opacity: 0; } }
+.popup { border: 1px solid #555; padding: 6px 12px; margin-top: 8px; display: inline-block; background: #252526; }
+.g-Rare { color: #4fc1ff; } .g-Unique { color: #c586c0; } .g-Legendary { color: #dcdcaa; }
+.burn0 { color: #ff6b3d; font-weight: bold; }
+.burn1 { color: #ffd23d; font-weight: bold; }
+.credits { color: #dcdcaa; }
+.cl { opacity: 0; animation: rise 0.8s ease-out forwards; }
+@keyframes rise { from { opacity: 0; transform: translateY(40px); } to { opacity: 1; transform: translateY(0); } }

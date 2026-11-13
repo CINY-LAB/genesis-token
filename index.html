@@ -1,0 +1,512 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>build.sh - terminal</title>
+<link id="fav" rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Crect width='16' height='16' rx='2' fill='%23333'/%3E%3Ctext x='2' y='12' font-size='10' font-family='monospace' fill='%23bbb'%3E%3E_%3C/text%3E%3C/svg%3E">
+<style>
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; background: #1e1e1e; color: #c8c8c8;
+    font: 13px/1.45 Consolas, "Cascadia Mono", Menlo, monospace; overflow: hidden; }
+  #term { display: flex; flex-direction: column; height: 100%; }
+  .tabs { display: flex; background: #252526; border-bottom: 1px solid #333; flex: none; }
+  .tab { padding: 6px 14px; color: #888; border-right: 1px solid #333; }
+  .tab.on { background: #1e1e1e; color: #ccc; }
+  #log { flex: 1; overflow-y: auto; padding: 8px 12px; white-space: pre-wrap; word-break: break-all; }
+  #log div { min-height: 1.45em; }
+  .ok { color: #6a9955; } .warn { color: #c9a64b; } .err { color: #c86464; }
+  .dim { color: #777; } .hi { color: #d4d4d4; } .cmd { color: #9cdcfe; }
+  .play, #ps.play { color: #4fc1ff; font-weight: bold; }
+  .box { border: 1px solid #555; padding: 4px 10px; margin: 4px 0; display: inline-block; color: #bbb; }
+  #in-row { display: flex; padding: 4px 12px 6px; flex: none; }
+  #ps { color: #6a9955; white-space: pre; }
+  #cmd { flex: 1; background: transparent; border: 0; outline: 0; color: #d4d4d4; font: inherit; padding: 0; }
+  #bar { display: flex; gap: 18px; background: #2d2d2d; color: #999; padding: 3px 12px; flex: none; font-size: 12px; }
+  #bar .r { margin-left: auto; }
+  /* disguise editor */
+  #ed { display: none; position: fixed; inset: 0; background: #1e1e1e; flex-direction: column; }
+  #ed.on { display: flex; }
+  .ed-main { flex: 1; display: flex; min-height: 0; }
+  .ed-act { width: 44px; background: #2c2c2c; flex: none; }
+  .ed-tree { width: 220px; background: #252526; color: #bbb; padding: 6px 0; flex: none; font-size: 12px; }
+  .ed-tree div { padding: 2px 0 2px 12px; white-space: pre; }
+  .ed-tree .t { color: #888; font-size: 11px; padding: 4px 12px 6px; }
+  .ed-tree .sel { background: #37373d; }
+  .ed-body { flex: 1; display: flex; flex-direction: column; min-width: 0; }
+  .ed-tabs { display: flex; background: #252526; flex: none; }
+  .ed-tabs span { padding: 6px 14px; color: #888; border-right: 1px solid #333; }
+  .ed-tabs .on { background: #1e1e1e; color: #ccc; }
+  .ed-code { flex: 1; overflow: hidden; display: flex; padding-top: 4px; }
+  .ed-ln { color: #5a5a5a; text-align: right; padding: 0 14px 0 10px; white-space: pre; user-select: none; }
+  .ed-src { white-space: pre; color: #d4d4d4; }
+  .k { color: #569cd6; } .s { color: #ce9178; } .c { color: #6a9955; } .a { color: #dcdcaa; }
+  .ed-bar { display: flex; gap: 18px; background: #007acc; color: #fff; padding: 3px 12px; font-size: 12px; flex: none; }
+  .ed-bar .r { margin-left: auto; }
+</style>
+</head>
+<body>
+<div id="term">
+  <div class="tabs"><span class="tab on">build.sh</span><span class="tab">deploy.log</span></div>
+  <div id="log"></div>
+  <div id="in-row"><span id="ps">dev@ci-01:~/pipeline$ </span><input id="cmd" autocomplete="off" spellcheck="false" autofocus></div>
+  <div id="bar"><span id="b-build"></span><span id="b-rate"></span><span id="b-loc"></span><span class="r" id="b-ver"></span></div>
+</div>
+
+<div id="ed">
+  <div class="ed-main">
+    <div class="ed-act"></div>
+    <div class="ed-tree">
+      <div class="t">EXPLORER</div>
+      <div>v src/main/java</div>
+      <div>  v com/corp/user</div>
+      <div>      UserController.java</div>
+      <div class="sel">      UserService.java</div>
+      <div>      UserRepository.java</div>
+      <div>      UserDto.java</div>
+      <div>  > com/corp/auth</div>
+      <div>  > com/corp/common</div>
+      <div>> src/test/java</div>
+      <div>  build.gradle</div>
+      <div>  application.yml</div>
+    </div>
+    <div class="ed-body">
+      <div class="ed-tabs"><span class="on">UserService.java</span><span>UserRepository.java</span><span>application.yml</span></div>
+      <div class="ed-code"><div class="ed-ln" id="ed-ln"></div><div class="ed-src" id="ed-src"></div></div>
+    </div>
+  </div>
+  <div class="ed-bar"><span>develop</span><span>0 errors, 0 warnings</span><span class="r">Ln 42, Col 18</span><span>Spaces: 4</span><span>UTF-8</span><span>Java</span></div>
+</div>
+
+<script>
+(function () {
+  'use strict';
+  var KEY = 'ci-runner-state';
+  var MAX_OFF = 8 * 3600;
+  var VERS = [
+    { v: '0.1', need: 0, unlock: '' },
+    { v: '0.3', need: 5000, req: null, unlock: 'buy cache, config set slots' },
+    { v: '0.6', need: 30000, req: function () { return s.servers >= 3; }, reqText: '3 agents', unlock: 'config set strategy=speed, buy parallel' },
+    { v: '0.9', need: 100000, req: function () { return s.cacheLv >= 1; }, reqText: 'cache installed', unlock: 'buy ci (auto retry)' },
+    { v: '1.0', need: 300000, req: null, unlock: '' }
+  ];
+  var UPG = {
+    server:   { ver: 0, costs: [1500, 4000], lv: function () { return s.servers - 1; }, desc: 'add build agent' },
+    cache:    { ver: 1, costs: [3000, 8000, 20000], lv: function () { return s.cacheLv; }, desc: 'build cache (-20% time per cache slot per lv)' },
+    parallel: { ver: 2, costs: [12000, 30000], lv: function () { return s.parallelLv; }, desc: 'parallel runner (+50% output per parallel slot per lv)' },
+    ci:       { ver: 3, costs: [25000], lv: function () { return s.ci ? 1 : 0; }, desc: 'CI automation (enables auto retry)' }
+  };
+  var MODS = ['auth', 'billing', 'gateway', 'user', 'notify', 'search', 'report', 'batch', 'common', 'admin'];
+
+  function defaults() {
+    return { loc: 0, total: 0, servers: 1, slots: { build: 1, cache: 0, parallel: 0 }, cacheLv: 0, parallelLv: 0,
+      ci: false, strategy: 'stable', retry: false, stopped: 0, ver: 0, build: 1, progress: 0, lastSeen: Date.now(), cleared: false, autolog: true };
+  }
+  var s = defaults();
+  var disguised = false, event = null, nextEvent = Date.now() + rnd(90, 180) * 1000, nextFill = 0, lastTick = Date.now();
+  var hist = [], hi = 0;
+  var chal = null, chalCd = 0;
+  var COMMITS = ['fix: null check in userService', 'feat: add paging to search api', 'refactor: extract billing calculator',
+    'fix: handle timeout in gateway client', 'chore: bump spring version', 'docs: update notify api guide',
+    'feat: add retry to batch job', 'fix: escape keyword in user search', 'test: add report service cases',
+    'perf: cache admin menu tree', 'fix: close stream in report export', 'feat: add audit log to auth'];
+  var LINTS = [['compile modle-auth ... ok', 'module'], ['resolve dependecies 12/40', 'dependencies'], ['test billing servcie: 31 passed', 'service'],
+    ['packaging artifcat gateway.jar', 'artifact'], ['upload coverge report (81%)', 'coverage'], ['lint src/notfiy/ ... 0 issues', 'notify'],
+    ['deprecated API: userClient.legacyFecth()', 'fetch'], ['runner-2 picked up job serach:test', 'search'], ['cache hit: reprot-3fa91c0', 'report'],
+    ['compile module-gatewya ... ok', 'gateway']];
+
+  var $log = document.getElementById('log'), $cmd = document.getElementById('cmd'), $ps = document.getElementById('ps');
+  var PS = 'dev@ci-01:~/pipeline$ ';
+  function setPs(t) { $ps.textContent = t || PS; $ps.className = t ? 'play' : ''; }
+
+  function rnd(a, b) { return a + Math.floor(Math.random() * (b - a + 1)); }
+  function pick(a) { return a[Math.floor(Math.random() * a.length)]; }
+  function fmt(n) { return Math.floor(n).toLocaleString('en-US'); }
+  function f1(n) { return (Math.round(n * 10) / 10).toFixed(1); }
+  function esc(t) { return String(t).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;'); }
+  function dur(sec) { sec = Math.floor(sec); var h = Math.floor(sec / 3600), m = Math.floor(sec % 3600 / 60), x = sec % 60;
+    return h ? h + 'h' + m + 'm' : m ? m + 'm' + x + 's' : x + 's'; }
+
+  function log(t, cls, raw) {
+    var d = document.createElement('div');
+    if (cls) d.className = cls;
+    d.innerHTML = raw ? t : esc(t);
+    var stick = $log.scrollTop + $log.clientHeight >= $log.scrollHeight - 30;
+    $log.appendChild(d);
+    while ($log.childNodes.length > 500) $log.removeChild($log.firstChild);
+    if (stick) $log.scrollTop = $log.scrollHeight;
+  }
+  function stamp() { var d = new Date(); return ('0' + d.getHours()).slice(-2) + ':' + ('0' + d.getMinutes()).slice(-2) + ':' + ('0' + d.getSeconds()).slice(-2); }
+
+  // ---- economy ----
+  function buildTime() { return 10 * (1 - Math.min(0.6, 0.2 * s.cacheLv * s.slots.cache)); }
+  function parMul() { return 1 + 0.5 * s.parallelLv * s.slots.parallel; }
+  function stratMul() { return s.strategy === 'speed' ? 1.5 : 1; }
+  function pass() { return s.strategy === 'speed' ? 0.8 : 1; }
+  function active() { return Math.max(0, s.slots.build - s.stopped); }
+  function perBuild() { return 10 * stratMul() * parMul(); }
+  function rate() { return active() * perBuild() * (60 / buildTime()) * pass(); }
+
+  function gain(n) { s.loc += n; s.total += n; checkVer(); }
+  function checkVer() {
+    while (s.ver < VERS.length - 1) {
+      var n = VERS[s.ver + 1];
+      if (s.total < n.need || (n.req && !n.req())) break;
+      s.ver++;
+      log('');
+      log('[' + stamp() + '] RELEASE v' + n.v + ' deployed', 'ok');
+      if (n.unlock) log('  new: ' + n.unlock, 'hi');
+      if (n.v === '1.0') { s.cleared = true; log('  pipeline milestone complete. v1.0 is live on production.', 'ok'); }
+    }
+  }
+  function progressText() {
+    if (s.ver >= VERS.length - 1) return 'v' + VERS[s.ver].v + ' released';
+    var n = VERS[s.ver + 1], p = Math.min(1, s.total / n.need), f = Math.round(p * 8);
+    return 'next v' + n.v + ' [' + new Array(f + 1).join('#') + new Array(9 - f).join('-') + '] ' + Math.floor(p * 100) + '%';
+  }
+
+  // ---- settle (offline / throttled) ----
+  function settle(sec, show) {
+    sec = Math.min(sec, MAX_OFF);
+    var bt = buildTime(), builds = Math.floor(sec / bt), got = 0, halted = 0, a = active();
+    if (s.strategy === 'speed' && !s.retry && a > 0) {
+      var ok = Math.min(builds * 0.8, 4);
+      got = a * ok * perBuild();
+      if (builds >= 5) { halted = a; s.stopped += a; }
+    } else {
+      got = rate() * sec / 60;
+    }
+    s.build += builds;
+    s.progress = 0;
+    if (show) {
+      log('<span class="box">Batch summary: ' + dur(sec) + ' processed<br>builds: ' + fmt(builds) + '   LOC: +' + fmt(got) +
+        (halted ? '<br><span class="err">' + halted + ' agent(s) halted after failure. type: retry</span>' : '') + '</span>', '', true);
+    } else if (sec >= 10) {
+      log('[INFO] resumed: ' + dur(sec) + ' processed, +' + fmt(got) + ' LOC', 'dim');
+    }
+    gain(got);
+  }
+
+  // ---- loop ----
+  function filler() {
+    var m = pick(MODS), r = Math.random();
+    if (r < 0.06) return log('[WARN] deprecated API: ' + m + 'Client.legacyFetch()', 'warn');
+    if (s.slots.cache > 0 && r < 0.2) return log('[INFO] cache hit: ' + m + '-' + Math.random().toString(16).slice(2, 9), 'dim');
+    if (s.slots.parallel > 0 && r < 0.3) return log('[INFO] runner-' + rnd(1, 4) + ' picked up job ' + m + ':test', 'dim');
+    var t = [
+      '[INFO] compile module-' + m + ' ... ok',
+      '[INFO] resolve dependencies ' + rnd(10, 40) + '/40',
+      '[INFO] test ' + m + 'ServiceTest: ' + rnd(8, 60) + ' passed',
+      '[INFO] lint src/' + m + '/ ... 0 issues',
+      '[INFO] packaging artifact ' + m + '-' + VERS[s.ver].v + '.' + s.build + '.jar',
+      '[INFO] upload coverage report (' + rnd(70, 93) + '%)'
+    ];
+    log(pick(t));
+  }
+
+  function finishBuild() {
+    var a = active(), ok = 0, fail = 0, lost = 0;
+    if (a === 0) { log('[WARN] build #' + s.build + ' skipped: no active agents. type: retry', 'warn'); s.build++; return; }
+    for (var i = 0; i < a; i++) {
+      if (Math.random() < pass()) ok++;
+      else if (s.retry) { lost++; }
+      else fail++;
+    }
+    if (lost) log('[ERROR] test failed on ' + lost + ' agent(s) -> auto retry', 'err');
+    if (fail) { s.stopped += fail; log('[ERROR] test failed on ' + fail + ' agent(s) -> halted. retry? [y]', 'err'); }
+    if (ok) {
+      var g = ok * perBuild();
+      if (s.autolog) log('[' + stamp() + '] BUILD SUCCESS #' + s.build + ' (' + f1(buildTime()) + 's, ' + ok + ' agent' + (ok > 1 ? 's' : '') + ')', 'ok');
+      gain(g);
+      if (s.autolog) log('  +' + fmt(g) + ' LOC committed (available ' + fmt(s.loc) + ')', 'dim');
+    }
+    s.build++;
+  }
+
+  function tick() {
+    var now = Date.now(), dt = (now - lastTick) / 1000;
+    lastTick = now;
+    if (dt > 5) { settle(dt, false); s.lastSeen = now; render(); return; }
+    s.progress += dt;
+    var bt = buildTime();
+    while (s.progress >= bt) { s.progress -= bt; finishBuild(); }
+    if (now >= nextFill && !disguised && s.autolog) { filler(); nextFill = now + rnd(1000, 2000); }
+    // events
+    if (!event && now >= nextEvent) {
+      var m = pick(MODS);
+      if (s.ci && s.retry) {
+        var b = rate() * 0.25;
+        if (s.autolog) log('[INFO] hotfix ' + m + '-' + rnd(100, 999) + ' applied by CI automation (+' + fmt(b) + ' LOC)', 'dim');
+        gain(b); nextEvent = now + rnd(90, 180) * 1000;
+      } else {
+        event = { until: now + 30000, m: m };
+        log('[PLAY] hotfix requested: ' + m + '-' + rnd(100, 999) + '. respond within 30s: fix', 'play');
+      }
+    }
+    if (event && now > event.until) { log('[INFO] hotfix request for ' + event.m + ' reassigned', 'dim'); event = null; nextEvent = now + rnd(90, 180) * 1000; }
+    if (chal && now > chal.until) endChal('late');
+    checkVer();
+    s.lastSeen = now;
+    render();
+  }
+
+  function render() {
+    document.getElementById('b-build').textContent = (active() ? 'Build #' + s.build + ' running' : 'Build paused') + (s.stopped ? '  (' + s.stopped + ' halted)' : '');
+    document.getElementById('b-rate').textContent = f1(rate()) + ' LOC/min';
+    document.getElementById('b-loc').textContent = 'LOC ' + fmt(s.loc);
+    document.getElementById('b-ver').textContent = 'v' + VERS[s.ver].v + '  ' + progressText();
+  }
+
+  // ---- challenge (commit / lint) ----
+  function startChal(k) {
+    var now = Date.now();
+    if (chal) return log('[PLAY] ' + chal.k + ': already in progress', 'play');
+    if (now < chalCd) return log('[PLAY] ' + k + ': cooldown ' + Math.ceil((chalCd - now) / 1000) + 's', 'play');
+    if (k === 'commit') {
+      chal = { k: k, a: pick(COMMITS), until: now + 15000 };
+      log('[PLAY] commit: type this message exactly within 15s', 'play');
+      log('<span class="box hi">  &gt; ' + esc(chal.a) + '</span>', '', true);
+    } else {
+      var q = pick(LINTS);
+      chal = { k: k, a: q[1], until: now + 15000 };
+      log('[PLAY] lint: typo found in log. type the correct word within 15s', 'play');
+      log('<span class="box hi">  &gt; ' + esc(q[0]) + '</span>', '', true);
+    }
+    setPs('[PLAY] ' + k + '> ');
+  }
+  function endChal(r) {
+    var k = chal.k; chal = null; chalCd = Date.now() + 3000; setPs();
+    if (r === 'ok') {
+      var b = Math.max(5, rate() * 0.1) + 100;
+      log('[PLAY] ' + k.toUpperCase() + ' OK  +' + fmt(b) + ' LOC committed (available ' + fmt(s.loc + b) + ')', 'ok');
+      gain(b);
+    } else if (r === 'bad') log('[PLAY] ' + k + ' rejected: ' + (k === 'commit' ? 'message' : 'word') + ' mismatch. cooldown 3s', 'err');
+    else log('[PLAY] ' + k + ' timed out. cooldown 3s', 'warn');
+  }
+
+  // ---- commands ----
+  function lock(min) { if (s.ver < min) { log('error: requires release v' + VERS[min].v, 'err'); return true; } return false; }
+
+  var CMDS = {
+    help: function () {
+      log('commands:', 'hi');
+      [['status', 'show pipeline status and throughput'],
+       ['upgrades', 'list available upgrades'],
+       ['buy <server|cache|parallel|ci>', 'purchase upgrade with LOC'],
+       ['config set strategy=<stable|speed>', 'stable x1.0 pass 100% / speed x1.5 pass 80%' + (s.ver < 2 ? '  (v0.6)' : '')],
+       ['config set slots=<build>,<cache>,<parallel>', 'assign agents to roles' + (s.ver < 1 ? '  (v0.3)' : '')],
+       ['config set retry=<on|off>', 'auto retry failed builds' + (s.ci ? '' : '  (requires ci)')],
+       ['config set autolog=<on|off>', 'show/hide automatic build logs (LOC still accrues)'],
+       ['retry | y', 'restart halted agents'],
+       ['fix', 'respond to hotfix request'],
+       ['commit', 'type a commit message for bonus LOC'],
+       ['lint', 'type the correct word of a typo for bonus LOC'],
+       ['clear', 'clear screen'],
+       ['reset --hard', 'wipe pipeline state']
+      ].forEach(function (r) { log('  ' + (r[0] + '                                              ').slice(0, 44) + r[1]); });
+    },
+    status: function () {
+      var rows = [
+        ['release', 'v' + VERS[s.ver].v + '  (' + progressText() + ')'],
+        ['LOC', fmt(s.loc) + ' available / ' + fmt(s.total) + ' total'],
+        ['agents', s.servers + '  (build:' + s.slots.build + ' cache:' + s.slots.cache + ' parallel:' + s.slots.parallel + ')  halted: ' + s.stopped],
+        ['build time', f1(buildTime()) + 's' + (s.cacheLv ? '  (cache lv' + s.cacheLv + ')' : '')],
+        ['output/build', f1(perBuild()) + ' LOC per agent' + (s.parallelLv ? '  (parallel lv' + s.parallelLv + ')' : '')],
+        ['strategy', s.strategy + '  (x' + stratMul().toFixed(1) + ', pass ' + Math.round(pass() * 100) + '%)'],
+        ['auto retry', s.retry ? 'on' : 'off' + (s.ci ? '' : '  (requires ci)')],
+        ['auto log', s.autolog ? 'on' : 'off  (automatic build logs hidden)'],
+        ['throughput', f1(rate()) + ' LOC/min']
+      ];
+      if (s.ver < VERS.length - 1 && VERS[s.ver + 1].req && !VERS[s.ver + 1].req()) rows.push(['blocked', 'v' + VERS[s.ver + 1].v + ' requires ' + VERS[s.ver + 1].reqText]);
+      if (s.strategy === 'speed' && !s.retry) rows.push(['note', 'retry off: failed agents halt until retry']);
+      log('pipeline status', 'hi');
+      rows.forEach(function (r) { log('  ' + (r[0] + '              ').slice(0, 14) + r[1]); });
+    },
+    upgrades: function () {
+      log('upgrades', 'hi');
+      Object.keys(UPG).forEach(function (k) {
+        var u = UPG[k], lv = u.lv(), st;
+        if (s.ver < u.ver) st = 'locked (v' + VERS[u.ver].v + ')';
+        else if (lv >= u.costs.length) st = 'max';
+        else st = fmt(u.costs[lv]) + ' LOC' + (s.loc >= u.costs[lv] ? '' : '  (insufficient)');
+        log('  ' + (k + '          ').slice(0, 10) + ('lv' + lv + '/' + u.costs.length + '    ').slice(0, 8) + (st + '                          ').slice(0, 28) + u.desc);
+      });
+    },
+    buy: function (a) {
+      var k = a[0], u = UPG[k];
+      if (!u) return log('usage: buy <server|cache|parallel|ci>', 'err');
+      if (lock(u.ver)) return;
+      var lv = u.lv();
+      if (lv >= u.costs.length) return log(k + ': already at max', 'warn');
+      var c = u.costs[lv];
+      if (s.loc < c) return log(k + ': need ' + fmt(c) + ' LOC (available ' + fmt(s.loc) + ')', 'err');
+      var before = rate();
+      s.loc -= c;
+      if (k === 'server') { s.servers++; s.slots.build++; }
+      else if (k === 'cache') s.cacheLv++;
+      else if (k === 'parallel') s.parallelLv++;
+      else if (k === 'ci') s.ci = true;
+      log('[INFO] installed ' + k + ' lv' + u.lv() + ' (-' + fmt(c) + ' LOC)  throughput ' + f1(before) + ' -> ' + f1(rate()) + ' LOC/min', 'ok');
+      if (k === 'cache' && s.slots.cache === 0) log('  hint: config set slots=<build>,<cache>,<parallel> to assign a cache agent', 'dim');
+      if (k === 'parallel' && s.slots.parallel === 0) log('  hint: config set slots=<build>,<cache>,<parallel> to assign a parallel agent', 'dim');
+      if (k === 'ci') log('  hint: config set retry=on', 'dim');
+      checkVer();
+    },
+    config: function (a) {
+      if (a[0] !== 'set' || !a[1] || a[1].indexOf('=') < 0) return log('usage: config set <strategy|slots|retry|autolog>=<value>', 'err');
+      var kv = a.slice(1).join('').split('='), k = kv[0], v = kv[1], before = rate();
+      if (k === 'strategy') {
+        if (v !== 'stable' && v !== 'speed') return log('strategy: stable | speed', 'err');
+        if (v === 'speed' && lock(2)) return;
+        s.strategy = v;
+      } else if (k === 'retry') {
+        if (v !== 'on' && v !== 'off') return log('retry: on | off', 'err');
+        if (v === 'on' && !s.ci) return log('error: auto retry requires ci (buy ci)', 'err');
+        s.retry = v === 'on';
+      } else if (k === 'autolog') {
+        if (v !== 'on' && v !== 'off') return log('autolog: on | off', 'err');
+        s.autolog = v === 'on';
+      } else if (k === 'slots') {
+        if (lock(1)) return;
+        var n = v.replace(/build:|cache:|parallel:/g, '').split(',').map(function (x) { return parseInt(x, 10); });
+        if (n.length !== 3 || n.some(function (x) { return isNaN(x) || x < 0; })) return log('slots: <build>,<cache>,<parallel>  e.g. 2,1,0', 'err');
+        if (n[0] + n[1] + n[2] !== s.servers) return log('slots: total must equal agents (' + s.servers + ')', 'err');
+        if (n[1] > 0 && !s.cacheLv) return log('error: cache slot requires cache (buy cache)', 'err');
+        if (n[2] > 0 && !s.parallelLv) return log('error: parallel slot requires parallel (buy parallel)', 'err');
+        s.slots = { build: n[0], cache: n[1], parallel: n[2] };
+        s.stopped = Math.min(s.stopped, s.slots.build);
+        v = n.join(',');
+      } else return log('unknown key: ' + k, 'err');
+      log('[INFO] config updated: ' + k + '=' + v + '  throughput ' + f1(before) + ' -> ' + f1(rate()) + ' LOC/min', 'ok');
+    },
+    retry: function () {
+      if (!s.stopped) return log('no halted agents', 'dim');
+      log('[INFO] restarted ' + s.stopped + ' agent(s)', 'ok'); s.stopped = 0;
+    },
+    fix: function () {
+      if (!event) return log('no pending hotfix', 'dim');
+      var b = rate() * 0.5;
+      log('[PLAY] hotfix ' + event.m + ' merged (+' + fmt(b) + ' LOC)', 'play');
+      gain(b); event = null; nextEvent = Date.now() + rnd(90, 180) * 1000;
+    },
+    commit: function () { startChal('commit'); },
+    lint: function () { startChal('lint'); },
+    clear: function () { $log.innerHTML = ''; },
+    reset: function (a) {
+      if (a[0] !== '--hard') return log('usage: reset --hard', 'err');
+      s = defaults(); save(); $log.innerHTML = ''; boot(false);
+    }
+  };
+  CMDS.y = CMDS.retry; CMDS.ls = CMDS.help;
+
+  function run(line) {
+    line = line.trim();
+    log('<span class="' + ($ps.className || 'dim') + '">' + esc($ps.textContent.replace(/\s+$/, '')) + '</span> <span class="cmd">' + esc(line) + '</span>', '', true);
+    if (!line) return;
+    hist.push(line); hi = hist.length;
+    var p = line.split(/\s+/), c = CMDS[p[0].toLowerCase()];
+    if (chal && p[0].toLowerCase() !== 'fix') {
+      if (Date.now() > chal.until) endChal('late');
+      else endChal(p.join(' ').toLowerCase() === chal.a.toLowerCase() ? 'ok' : 'bad');
+      render(); save(); return;
+    }
+    if (c) c(p.slice(1)); else log(p[0] + ': command not found. type help', 'err');
+    render(); save();
+  }
+
+  // ---- save / load ----
+  function save() { s.lastSeen = Date.now(); try { localStorage.setItem(KEY, JSON.stringify(s)); } catch (e) {} }
+  function load() {
+    try {
+      var d = JSON.parse(localStorage.getItem(KEY) || 'null');
+      if (d) { var b = defaults(); for (var k in b) if (d[k] !== undefined) b[k] = d[k]; s = b; return true; }
+    } catch (e) {}
+    return false;
+  }
+
+  function boot(restored) {
+    log('ci-runner 3.2.1  (agent ci-01)', 'dim');
+    log(restored ? 'restoring pipeline state ...' : 'initializing pipeline ...', 'dim');
+    log('type help for commands', 'dim');
+    log('');
+    if (restored) {
+      var off = (Date.now() - s.lastSeen) / 1000;
+      if (off > 60) settle(off, true);
+    }
+    lastTick = Date.now();
+    render();
+  }
+
+  // ---- disguise ----
+  var CODE = [
+    'package com.corp.user;', '',
+    'import java.util.List;', 'import java.util.ArrayList;', 'import org.springframework.stereotype.Service;',
+    'import org.springframework.transaction.annotation.Transactional;', '',
+    '/**', ' * User domain service.', ' * Handles lookup, update and status change of user accounts.', ' */',
+    '@Service', 'public class UserService {', '',
+    '    private static final int MAX_PAGE_SIZE = 200;', '',
+    '    private final UserRepository userRepository;', '    private final AuditLogger auditLogger;', '',
+    '    public UserService(UserRepository userRepository, AuditLogger auditLogger) {',
+    '        this.userRepository = userRepository;', '        this.auditLogger = auditLogger;', '    }', '',
+    '    @Transactional(readOnly = true)',
+    '    public List<UserDto> findUsers(String keyword, int page, int size) {',
+    '        int limit = Math.min(size, MAX_PAGE_SIZE);',
+    '        List<User> users = userRepository.search(keyword, page * limit, limit);',
+    '        List<UserDto> result = new ArrayList<UserDto>(users.size());',
+    '        for (User user : users) {', '            result.add(UserDto.from(user));', '        }',
+    '        return result;', '    }', '',
+    '    @Transactional',
+    '    public void changeStatus(long userId, UserStatus status, String operator) {',
+    '        User user = userRepository.findById(userId);',
+    '        if (user == null) {', '            throw new UserNotFoundException("user not found: " + userId);', '        }',
+    '        // TODO: check permission of operator before status change',
+    '        UserStatus before = user.getStatus();', '        user.setStatus(status);',
+    '        userRepository.update(user);',
+    '        auditLogger.write("USER_STATUS", userId, before + " -> " + status, operator);', '    }', '',
+    '    @Transactional',
+    '    public void updateProfile(long userId, ProfileRequest request) {',
+    '        User user = userRepository.findById(userId);',
+    '        if (user == null) {', '            throw new UserNotFoundException("user not found: " + userId);', '        }',
+    '        user.setName(request.getName());', '        user.setPhone(request.getPhone());',
+    '        userRepository.update(user);', '    }', '}'
+  ];
+  var KW = /\b(package|import|public|private|static|final|class|new|return|for|if|throw|void|int|long|this|null)\b/g;
+  function hl(line) {
+    var t = line.trim();
+    if (t.indexOf('//') === 0 || t.indexOf('/*') === 0 || t.indexOf('*') === 0) return '<span class="c">' + esc(line) + '</span>';
+    return line.split(/("[^"]*")/).map(function (p, i) {
+      if (i % 2) return '<span class="s">' + esc(p) + '</span>';
+      return esc(p).replace(KW, '<span class="k">$1</span>').replace(/(@\w+)/g, '<span class="a">$1</span>');
+    }).join('');
+  }
+  document.getElementById('ed-ln').textContent = CODE.map(function (_, i) { return i + 1; }).join('\n');
+  document.getElementById('ed-src').innerHTML = CODE.map(hl).join('\n');
+
+  function toggle() {
+    disguised = !disguised;
+    document.getElementById('ed').className = disguised ? 'on' : '';
+    document.getElementById('term').style.visibility = disguised ? 'hidden' : '';
+    document.title = disguised ? 'UserService.java - editor' : 'build.sh - terminal';
+    $cmd.disabled = disguised;
+    if (disguised && chal) { log('[PLAY] ' + chal.k + ' cancelled', 'play'); chal = null; setPs(); }
+    if (!disguised) { $cmd.focus(); $log.scrollTop = $log.scrollHeight; }
+  }
+
+  document.addEventListener('keydown', function (e) {
+    if (e.key === 'Escape') { e.preventDefault(); toggle(); return; }
+    if (disguised) { e.preventDefault(); return; }
+    if (e.target !== $cmd) return;
+    if (e.key === 'Enter') { run($cmd.value); $cmd.value = ''; }
+    else if (e.key === 'ArrowUp') { if (hi > 0) $cmd.value = hist[--hi]; e.preventDefault(); }
+    else if (e.key === 'ArrowDown') { hi = Math.min(hist.length, hi + 1); $cmd.value = hist[hi] || ''; e.preventDefault(); }
+  });
+  document.getElementById('term').addEventListener('click', function () { if (!window.getSelection().toString()) $cmd.focus(); });
+  window.addEventListener('beforeunload', save);
+  document.addEventListener('visibilitychange', save);
+
+  boot(load());
+  setInterval(tick, 1000);
+  setInterval(save, 5000);
+})();
+</script>
+</body>
+</html>

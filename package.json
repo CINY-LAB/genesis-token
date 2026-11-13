@@ -1,0 +1,10 @@
+{
+  "name": "genesis-token",
+  "version": "1.0.0",
+  "description": "GENESIS TOKEN - idle typing mining game",
+  "private": true,
+  "scripts": {
+    "start": "node server.js",
+    "sim": "node tools/sim.js"
+  }
+}
