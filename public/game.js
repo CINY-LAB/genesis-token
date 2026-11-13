@@ -296,6 +296,15 @@
       var b = C.MINE.rewardBase * Math.pow(C.MINE.rewardGrowth, lv - 1);
       return [Math.round(b), Math.round(b * C.MINE.rewardSpread)];
     }
+    // Display only: base + flat, times mult (lucky roll excluded)
+    function bonusAutoAmount() {
+      var e = effects();
+      return Math.round((autoAmount() + e.autoFlat) * e.mult * 10) / 10;
+    }
+    function bonusMineRange() {
+      var e = effects(), r = mineRewardRange();
+      return [Math.round((r[0] + e.typeFlat) * e.mult), Math.round((r[1] + e.typeFlat) * e.mult)];
+    }
     function jewelChance(lv) {
       lv = lv || state.mine_level;
       var c = C.MINE.jewelChanceBase + C.MINE.jewelChancePerLevel * (lv - 1);
@@ -450,7 +459,7 @@
       get burnLeft() { return burnLeft; },
       stopBurn: stopBurn,
       tick: tick, autoProgress: autoProgress, autoAmount: autoAmount, autoCost: autoCost, autoLevelUp: autoLevelUp,
-      mineCost: mineCost, mineLevelUp: mineLevelUp, mineRewardRange: mineRewardRange, jewelChance: jewelChance,
+      mineCost: mineCost, mineLevelUp: mineLevelUp, mineRewardRange: mineRewardRange, bonusAutoAmount: bonusAutoAmount, bonusMineRange: bonusMineRange, jewelChance: jewelChance,
       newWord: newWord, submit: submit,
       getJewel: getJewel, isEquipped: isEquipped, jewelPower: jewelPower, jewelLevelCost: jewelLevelCost,
       sellPrice: sellPrice, jewelLevelUp: jewelLevelUp, sellJewel: sellJewel, addJewel: addJewel, rollJewel: rollJewel,

@@ -5,6 +5,7 @@ html, body { margin: 0; height: 100%; background: #1e1e1e; color: #c8c8c8;
 #screen div { min-height: 1.5em; }
 .title { color: #4fc1ff; font-weight: bold; }
 .tok { color: #dcdcaa; }
+.bonus { color: #c9c27a; }
 .dim { color: #777; }
 .good { color: #6a9955; }
 .dev { color: #c86464; }

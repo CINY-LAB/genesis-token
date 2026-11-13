@@ -51,8 +51,10 @@
     function renderMain() {
       var s = game.state, e = game.effects();
       var bar = Math.round(game.autoProgress() * 20);
+      var amt = game.bonusAutoAmount();
       var h = header('GENESIS TOKEN');
-      h += '<div>' + pad('Auto mine', 11) + 'Lv.' + s.auto_miner_level + '  ' + game.autoAmount() + ' / ' +
+      h += '<div>' + pad('Auto mine', 11) + 'Lv.' + s.auto_miner_level + '  ' +
+        (amt !== game.autoAmount() ? '<span class="bonus">' + amt + '</span>' : amt) + ' / ' +
         e.interval.toFixed(1) + 's  [' + new Array(bar + 1).join('#') + new Array(21 - bar).join('.') + ']</div>';
       h += '<div>' + pad('Mine', 11) + 'Lv.' + s.mine_level + '</div>';
       h += '<div>' + pad('Slots', 11) + s.slots.length + '/3</div>';
@@ -90,7 +92,9 @@
     }
 
     function renderMine() {
-      var s = game.state, w = game.word, r = game.mineRewardRange();
+      var s = game.state, w = game.word, r0 = game.mineRewardRange(), r = game.bonusMineRange();
+      var rTxt = fmt(r[0]) + '~' + fmt(r[1]);
+      if (r[0] !== r0[0] || r[1] !== r0[1]) rTxt = '<span class="bonus">' + rTxt + '</span>';
       var typing = ui.mineMode === 'type', burn = game.burnLeft > 0;
       var fx = burn ? ' burn' + (ui.flash++ % 2) : '';
       var h = header('MINE Lv.' + s.mine_level);
@@ -99,7 +103,7 @@
       h += '<div>Type:  <span class="word' + fx + '">' + esc(w) + '</span></div>';
       h += '<div>Input: <span class="word">' + esc(ui.input) + (typing ? '<span class="cur">_</span>' : '') + '</span></div>';
       h += '<div class="dim">Combo ' + (burn ? C.MINE.burnStreak : game.streak) + '/' + C.MINE.burnStreak + '</div><br>';
-      h += '<div class="dim">Reward ' + fmt(r[0]) + '~' + fmt(r[1]) + '  Jewel ' +
+      h += '<div class="dim">Reward ' + rTxt + '  Jewel ' +
         (game.jewelChance() * 100).toFixed(1) + '%</div>';
       h += '<div>Mine level up: ' + cost(game.mineCost()) + '</div>';
       if (!typing) h += '<br>' + menuRows(MINE_MENU, ui.mineSel);
@@ -302,6 +306,7 @@
       ui.menu = Math.min(ui.menu, menu.length - 1);
       if (k === 'arrowup' || k === 'arrowdown') { ui.menu = moveCursor(k, ui.menu, menu.length); return; }
       if (k === 'enter') k = menu[ui.menu][0];
+      if (k === ' ') { window.open(bossUrl(), '_blank', 'noopener'); return; }
       if (k === '1') go('mine');
       else if (k === '2') go('slots');
       else if (k === '3') go('inventory');
@@ -415,8 +420,7 @@
       if (e.key === 'Tab' || e.key.indexOf('Arrow') === 0 || e.key === ' ' || e.key === 'Backspace') e.preventDefault();
       var typing = ui.screen === 'mine' || (ui.screen === 'settings' && ui.editing);
       if (e.repeat && (!typing || e.key === 'Escape' || e.key === ' ')) return;
-      // TODO(T-0010 보류): esc 보스 키(bossUrl() 새 탭 열기) 트리거 지점. 대표님 확정 전 구현 금지.
-      // T-0013: Esc는 마이닝 모드 전환, 설정 URL 편집 취소는 Space로 변경됨.
+      // T-0016: 보스 키는 메인 화면 Space(keyMain). Esc는 마이닝 모드 전환, 설정 URL 편집 취소는 Space.
       handleKey(e.key);
     });
     // Paste URL while editing in Settings (Ctrl+V is ignored by keydown above)
