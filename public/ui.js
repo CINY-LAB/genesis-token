@@ -135,7 +135,7 @@
       var cur = s.slots[ui.slot];
       if (cur) {
         var jid = cur.equipped[ui.cell], j = jid == null ? null : game.getJewel(jid);
-        h += '<div class="dim">Cell: ' + (j ? esc(j.grade + ' ' + j.kind + ' Lv.' + j.level) : 'empty') + '</div>';
+        h += '<div class="dim">Cell: ' + (j ? esc(j.grade + ' ' + j.kind + ' Lv.' + j.level + '  (' + game.jewelBonus(j) + ')') : 'empty') + '</div>';
         h += '<div>Slot ' + (ui.slot + 1) + ' level up: ' + cost(game.slotLevelCost(ui.slot)) + '</div>';
       }
       h += '<div>Buy next slot: ' + cost(game.slotBuyCost()) + '</div>';
@@ -170,7 +170,7 @@
       h += '<br>';
       var sel = s.jewels[ui.inv];
       if (sel) h += '<div>Level up: ' + cost(game.jewelLevelCost(sel)) + '   Sell: ' + fmt(game.sellPrice(sel)) +
-        '   Power: ' + game.jewelPower(sel).toFixed(2) + '</div>';
+        '   Bonus: ' + game.jewelBonus(sel) + '</div>';
       var ec = game.expandCost();
       h += '<div>' + (ec == null ? 'Expand: MAX' : 'Expand +5: ' + fmt(ec)) + '</div>';
       return h + footer([btn('l', '[l] Level up'), btn('x', '[x] Sell'), btn('e', '[e] Expand'), btn('b', '[b] Back')]);

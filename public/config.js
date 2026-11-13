@@ -25,8 +25,8 @@
     AUTO: {
       maxLevel: 50,
       intervalSec: 10,
-      baseAmount: 0.5,
-      amountPerLevel: 0.15,
+      baseAmount: 0.55,
+      amountPerLevel: 0.28,
       intervalPerLevel: 0.06,    // interval - 0.06s per level (min minIntervalSec)
       costBase: 300,
       costGrowth: 1.14,

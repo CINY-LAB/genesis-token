@@ -81,6 +81,16 @@
     function gradeIndex(g) { return C.GRADES.indexOf(g); }
     function jewelPoint(j) { return C.GRADE_MULT[j.grade] * (1 + C.JEWEL.powerPerLevel * (j.level - 1)); }
     function jewelPower(j) { return C.JEWEL.powerBase * jewelPoint(j); }
+    function jewelBonus(j) {   // display only: jewel alone, no combo / Diamond amp
+      var E = C.EFFECT, p = jewelPower(j);
+      function pct(v) { return '+' + Math.round(v * 100) + '% '; }
+      if (j.kind === 'Ruby') return '+' + (p * E.rubyTypeFlat).toFixed(1) + ' per word';
+      if (j.kind === 'Topaz') return pct(p * E.topazPct) + 'amount';
+      if (j.kind === 'Sapphire') return pct(p * E.sapphireSpeed) + 'speed';
+      if (j.kind === 'Emerald') return pct(p * E.emeraldChance) + 'double';
+      if (j.kind === 'Diamond') return pct(p * E.diamondAmp) + 'amp';
+      return '';
+    }
     function jewelLevelCost(j) {
       if (j.level >= C.JEWEL.maxLevel) return null;
       return C.JEWEL.levelCostBase * Math.pow(C.JEWEL.levelCostGrowth, j.level - 1);
@@ -461,7 +471,7 @@
       tick: tick, autoProgress: autoProgress, autoAmount: autoAmount, autoCost: autoCost, autoLevelUp: autoLevelUp,
       mineCost: mineCost, mineLevelUp: mineLevelUp, mineRewardRange: mineRewardRange, bonusAutoAmount: bonusAutoAmount, bonusMineRange: bonusMineRange, jewelChance: jewelChance,
       newWord: newWord, submit: submit,
-      getJewel: getJewel, isEquipped: isEquipped, jewelPower: jewelPower, jewelLevelCost: jewelLevelCost,
+      getJewel: getJewel, isEquipped: isEquipped, jewelPower: jewelPower, jewelBonus: jewelBonus, jewelLevelCost: jewelLevelCost,
       sellPrice: sellPrice, jewelLevelUp: jewelLevelUp, sellJewel: sellJewel, addJewel: addJewel, rollJewel: rollJewel,
       expandCost: expandCost, expand: expand,
       slotBuyCost: slotBuyCost, buySlot: buySlot, slotLevelCost: slotLevelCost, slotLevelUp: slotLevelUp,
